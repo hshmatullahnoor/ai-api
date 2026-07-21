@@ -1,6 +1,7 @@
 interface Env {
   UPSTREAM_BASE_URL: string;
   DEFAULT_MODEL: string;
+  G4F_SESSION?: string;
 }
 
 type ChatMessage = {
@@ -33,12 +34,25 @@ function upstreamUrl(env: Env, path: string): string {
   return `${env.UPSTREAM_BASE_URL}${path}`;
 }
 
-async function proxyModels(env: Env): Promise<Response> {
+function getUpstreamHeaders(request: Request, env: Env): HeadersInit {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json"
+  };
+
+  const incomingAuth = request.headers.get("Authorization");
+  if (incomingAuth) {
+    headers.Authorization = incomingAuth;
+  } else if (env.G4F_SESSION) {
+    headers.Authorization = `Bearer ${env.G4F_SESSION}`;
+  }
+
+  return headers;
+}
+
+async function proxyModels(request: Request, env: Env): Promise<Response> {
   const response = await fetch(upstreamUrl(env, "/models"), {
     method: "GET",
-    headers: {
-      "Content-Type": "application/json"
-    }
+    headers: getUpstreamHeaders(request, env)
   });
 
   return new Response(await response.text(), {
@@ -65,9 +79,7 @@ async function proxyChat(request: Request, env: Env): Promise<Response> {
 
   const response = await fetch(upstreamUrl(env, "/chat/completions"), {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
+    headers: getUpstreamHeaders(request, env),
     body: JSON.stringify(payload)
   });
 
@@ -94,7 +106,7 @@ export default {
       }
 
       if (request.method === "GET" && url.pathname === "/api/models") {
-        return await proxyModels(env);
+        return await proxyModels(request, env);
       }
 
       if (request.method === "POST" && url.pathname === "/api/chat") {
