@@ -1,4 +1,4 @@
-name = "direct-endpoint-api"
+name = "ai-api"
 main = "src/worker.ts"
 compatibility_date = "2026-07-21"
 
