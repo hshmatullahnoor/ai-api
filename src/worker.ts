@@ -1,5 +1,6 @@
+import { createClient } from "https://g4f.dev/dist/js/providers.js";
+
 interface Env {
-  UPSTREAM_BASE_URL: string;
   DEFAULT_MODEL: string;
   G4F_SESSION?: string;
 }
@@ -30,38 +31,16 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-function upstreamUrl(env: Env, path: string): string {
-  return `${env.UPSTREAM_BASE_URL}${path}`;
-}
-
-function getUpstreamHeaders(request: Request, env: Env): HeadersInit {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json"
-  };
-
+async function getClient(request: Request, env: Env): Promise<any> {
   const incomingAuth = request.headers.get("Authorization");
-  if (incomingAuth) {
-    headers.Authorization = incomingAuth;
-  } else if (env.G4F_SESSION) {
-    headers.Authorization = `Bearer ${env.G4F_SESSION}`;
-  }
-
-  return headers;
+  const apiKey = incomingAuth?.replace(/^Bearer\s+/i, "") ?? env.G4F_SESSION;
+  return createClient("ollama.pro", apiKey ? { apiKey } : {});
 }
 
 async function proxyModels(request: Request, env: Env): Promise<Response> {
-  const response = await fetch(upstreamUrl(env, "/models"), {
-    method: "GET",
-    headers: getUpstreamHeaders(request, env)
-  });
-
-  return new Response(await response.text(), {
-    status: response.status,
-    headers: {
-      "Content-Type": "application/json",
-      ...corsHeaders
-    }
-  });
+  const client = await getClient(request, env);
+  const models = await client.models.list();
+  return jsonResponse(models);
 }
 
 async function proxyChat(request: Request, env: Env): Promise<Response> {
@@ -77,19 +56,9 @@ async function proxyChat(request: Request, env: Env): Promise<Response> {
     messages: body.messages ?? [{ role: "user", content: "Hello!" }]
   };
 
-  const response = await fetch(upstreamUrl(env, "/chat/completions"), {
-    method: "POST",
-    headers: getUpstreamHeaders(request, env),
-    body: JSON.stringify(payload)
-  });
-
-  return new Response(await response.text(), {
-    status: response.status,
-    headers: {
-      "Content-Type": "application/json",
-      ...corsHeaders
-    }
-  });
+  const client = await getClient(request, env);
+  const result = await client.chat.completions.create(payload);
+  return jsonResponse(result);
 }
 
 export default {

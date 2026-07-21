@@ -3,5 +3,4 @@ main = "src/worker.ts"
 compatibility_date = "2026-07-21"
 
 [vars]
-UPSTREAM_BASE_URL = "https://g4f.space/api/ollama.pro"
 DEFAULT_MODEL = "gpt-oss:120b"
